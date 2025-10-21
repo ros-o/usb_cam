@@ -169,7 +169,7 @@ bool AbstractV4LUSBCam::start()
         }
     }
     else
-        printf("Video4Linux: internal error occurred, hoping for device fallback\n");
+        printf("Video4Linux: Crop capability not supported\n");
     CLEAR(fmt);
     fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     fmt.fmt.pix.width = image_width;
@@ -197,14 +197,17 @@ bool AbstractV4LUSBCam::start()
         printf("Cannot set stream parameters (%i)\n", errno);
         return false;
     }
-    if(!stream_params.parm.capture.capability && V4L2_CAP_TIMEPERFRAME)
+    if(!(stream_params.parm.capture.capability & V4L2_CAP_TIMEPERFRAME)){
         printf("Video4Linux: V4L2_CAP_TIMEPERFRAME not supported\n");
-    // TODO(lucasw) need to get list of valid numerator/denominator pairs
-    // and match closest to what user put in.
-    stream_params.parm.capture.timeperframe.numerator = 1;
-    stream_params.parm.capture.timeperframe.denominator = framerate;
-    if (usb_cam::util::xioctl(file_dev, static_cast<int>(VIDIOC_S_PARM), &stream_params) < 0)
-        printf("Video4Linux: cannot set desired framerate: %i fps (%i)\n", framerate,  errno);
+    }
+    else {
+        // TODO(lucasw) need to get list of valid numerator/denominator pairs
+        // and match closest to what user put in.
+        stream_params.parm.capture.timeperframe.numerator = 1;
+        stream_params.parm.capture.timeperframe.denominator = framerate;
+        if (usb_cam::util::xioctl(file_dev, static_cast<int>(VIDIOC_S_PARM), &stream_params) < 0)
+            printf("Video4Linux: cannot set desired framerate: %i fps (%i)\n", framerate,  errno);
+    }
     /* Final frame grabber setup */
     run_grabber(fmt.fmt.pix.sizeimage);
 
@@ -569,7 +572,7 @@ camera_image_t *AbstractV4LUSBCam::read_frame()
         {
             printf("Unable to exchange buffer with driver (%i)\n", errno);
             return nullptr;
-        } 
+        }
         break;
     case IO_METHOD_USERPTR:
         CLEAR(buf);
