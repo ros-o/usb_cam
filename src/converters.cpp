@@ -44,6 +44,8 @@ pixel_format_t pixel_format_from_string(const std::string & str)
         return pixel_format_t::PIXEL_FORMAT_YU12;
     else if (str == "bgr24")
         return PIXEL_FORMAT_BGR24;
+    else if (str == "bayer_grbg8")
+        return PIXEL_FORMAT_GRBG8;
     else
         return pixel_format_t::PIXEL_FORMAT_UNKNOWN;
 }
@@ -70,6 +72,8 @@ std::string pixel_format_to_string(const uint32_t & pixelformat)
         return "grey";
     case pixel_format_t::PIXEL_FORMAT_YU12:
         return "yu12";
+    case pixel_format_t::PIXEL_FORMAT_GRBG8:
+        return "bayer_grbg8";
     case pixel_format_t::PIXEL_FORMAT_UNKNOWN:
     default:
         return "unknown";
@@ -112,6 +116,8 @@ unsigned int v4l_pixel_format_from_pixel_format(const pixel_format_t &pixelforma
         return V4L2_PIX_FMT_GREY;
     case PIXEL_FORMAT_YU12:
         return V4L2_PIX_FMT_YUV420;
+    case PIXEL_FORMAT_GRBG8:
+	    return V4L2_PIX_FMT_SGRBG8;
     default:
         return UINT_MAX;
     }

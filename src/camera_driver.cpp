@@ -599,18 +599,24 @@ camera_image_t *AbstractV4LUSBCam::read_frame()
         {
             printf("Unable to exchange buffer with driver (%i)\n", errno);
             return nullptr;
-        } 
+        }
         break;
     default:
         printf("Attempt to grab the frame via unknown I/O method (%i)\n", errno);
     }
     bool processing_result = false;
+
+    const void* src = nullptr;
+
     if(io_method == IO_METHOD_READ)
-        processing_result = process_image(buffers[0].start, len, image);
+        src = buffers[0].start;
     else if(io_method == IO_METHOD_MMAP)
-        processing_result = process_image(buffers[buf.index].start, len, image);
+        src = buffers[buf.index].start;
     else if(io_method == IO_METHOD_USERPTR)
-        processing_result = process_image(reinterpret_cast<const void *>(buf.m.userptr), len, image);
+        src = reinterpret_cast<const void *>(buf.m.userptr);
+
+    processing_result = process_image(src, len, image);
+
     if(!processing_result)
     {
         printf("2D processing operation fault\n");
@@ -623,9 +629,7 @@ camera_image_t *AbstractV4LUSBCam::read_frame()
         image->encoding = "mono8";
         image->step = image->width;
     }
-    else
-    {
-        // TODO(lucasw) aren't there other encoding types?
+    else if(image->encoding.empty()){
         image->encoding = "rgb8";
         image->step = image->width * 3;
     }
@@ -887,6 +891,12 @@ bool AbstractV4LUSBCam::process_image(const void *src, int len, camera_image_t *
         result = util::converters::COPY2RGB(const_cast<char *>(reinterpret_cast<const char *>(src)), dest->image, dest->width * dest->height);
     else if(v4l_pixel_format == V4L2_PIX_FMT_YUV420)
         result = util::converters::YUV4202RGB(const_cast<char *>(reinterpret_cast<const char *>(src)), dest->image, dest->width, dest->height);
+    else if(v4l_pixel_format == V4L2_PIX_FMT_SGRBG8) {
+        memcpy(dest->image, src, len);
+        dest->encoding = "bayer_grbg8";
+        dest->step = dest->width;  // 1 byte per pixel
+        result = true;
+    }
     else if(v4l_pixel_format == V4L2_PIX_FMT_BGR24) // Direct copy for OpenCV
     {
         memcpy(dest->image, src, len);
