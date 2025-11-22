@@ -135,19 +135,39 @@ UsbCam::UsbCam():
     node.param<std::string>("camera_info_url", camera_info_url, "");
     node.getParam("image_width", image_width);
     node.getParam("image_height", image_height);
-    node.getParam("framerate", framerate);
+    int output_framerate;
+    node.getParam("framerate", output_framerate);
+    node.param<int>("internal_framerate", framerate, 30);
     node.param<std::string>("start_service_name", _service_start_name, "start_capture");
     node.param<std::string>("stop_service_name", _service_stop_name, "stop_capture");
 
+    //calculate and test framestride
+    if (output_framerate == 0) {
+        ROS_ERROR("Requested output framerate cannot be 0.");
+        node.shutdown();
+        return;
+    }
+    if ((framerate % output_framerate) != 0){
+        ROS_ERROR("Invalid framrate, can not divide internal_framerate of %d by requested framerate of %d.", framerate, output_framerate);
+        node.shutdown();
+        return;
+    }
+    framestride = framerate / output_framerate;
+    if (framestride < 1) {
+        ROS_WARN("Invalid 'framestride' parameter value (%d), must be 1 or greater. Defaulting to 1.", framestride);
+        framestride = 1;
+    }
+
     // Advertising camera
-    ROS_INFO("Initializing ROS V4L USB camera '%s' (%s) at %dx%d via %s (%s) at %i FPS",
+    ROS_INFO("Initializing ROS V4L USB camera '%s' (%s) at %dx%d via %s (%s) at %i FPS and %i framestride",
              camera_name.c_str(),
              video_device_name.c_str(),
              image_width,
              image_height,
              io_method_name.c_str(),
              pixel_format_name.c_str(),
-             framerate);
+             framerate,
+             framestride);
     _image_pub = image_transport->advertiseCamera(camera_transport_suffix, 1);
     image_pub = &_image_pub;
     camera_info = new camera_info_manager::CameraInfoManager(node, camera_name, camera_info_url);
@@ -285,7 +305,7 @@ void UsbCam::frame_timer_callback(const ros::TimerEvent &event)
         camera_image_t* new_image = read_frame();
         if(new_image == nullptr)
         {
-            ROS_ERROR("Video4linux: frame grabber failed");
+            if(!frame_skipped) ROS_ERROR("Video4linux: frame grabber failed");
             return;
         }
         img_msg->header.stamp.sec = new_image->stamp.tv_sec;
